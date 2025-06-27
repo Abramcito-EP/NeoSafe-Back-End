@@ -15,6 +15,12 @@ router.group(() => {
   
 }).prefix('/api/auth')
 
+// Rutas para sensores
+router.group(() => {
+  router.get('/latest', '#controllers/sensors_controller.getLatestData')
+  router.get('/historical', '#controllers/sensors_controller.getHistoricalData')
+}).prefix('/api/sensors').use(middleware.auth())
+
 // Ruta por defecto
 router.get('/', async ({ response }) => {
   return response.status(200).json({ message: 'NeoSafe API' })
