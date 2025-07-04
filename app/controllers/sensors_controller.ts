@@ -1,5 +1,6 @@
 import { HttpContext } from '@adonisjs/core/http'
 import MongoClient from '#services/mongo_client'
+import SafeBox from '#models/safe_box'
 
 interface TemperatureSensor {
   boxId: number
@@ -20,34 +21,53 @@ interface WeightSensor {
 }
 
 export default class SensorsController {
-  async getLatestData({ response }: HttpContext) {
+  async getLatestData({ request, auth, response }: HttpContext) {
     try {
+      const { boxId } = request.qs();
+      const user = auth.user!
+      await user.load('role')
+      
+      // Verificar permisos para acceder a la caja específica
+      if (boxId) {
+        const box = await SafeBox.findOrFail(boxId);
+        
+        if (user.role.name === 'user' && box.ownerId !== user.id) {
+          return response.forbidden({ message: 'No tienes permiso para acceder a los datos de esta caja' });
+        }
+        
+        if (user.role.name === 'provider' && box.providerId !== user.id) {
+          return response.forbidden({ message: 'No eres el proveedor de esta caja' });
+        }
+      }
+      
       // Conectar a MongoDB si aún no lo está
       if (!MongoClient.isConnectedToMongo()) {
         await MongoClient.connect()
       }
 
-      const boxId = 1 // ID fijo para la simulación
+      // Si no se especifica boxId, usar boxId 1 (comportamiento anterior para compatibilidad)
+      const targetBoxId = boxId ? parseInt(boxId) : 1;
 
       const latestTemperature = await MongoClient.collection<TemperatureSensor>('temperature_sensors')
-        .find({ boxId })
+        .find({ boxId: targetBoxId })
         .sort({ createdAt: -1 })
         .limit(1)
         .toArray()
 
       const latestHumidity = await MongoClient.collection<HumiditySensor>('humidity_sensors')
-        .find({ boxId })
+        .find({ boxId: targetBoxId })
         .sort({ createdAt: -1 })
         .limit(1)
         .toArray()
 
       const latestWeight = await MongoClient.collection<WeightSensor>('weight_sensors')
-        .find({ boxId })
+        .find({ boxId: targetBoxId })
         .sort({ createdAt: -1 })
         .limit(1)
         .toArray()
 
       return response.ok({
+        boxId: targetBoxId,
         temperature: latestTemperature.length > 0 ? {
           value: latestTemperature[0].temperature,
           timestamp: latestTemperature[0].createdAt
@@ -69,15 +89,32 @@ export default class SensorsController {
     }
   }
 
-  async getHistoricalData({ request, response }: HttpContext) {
+  async getHistoricalData({ request, auth, response }: HttpContext) {
     try {
+      const { sensor, hours = 24, boxId } = request.qs();
+      const user = auth.user!
+      await user.load('role')
+      
+      // Verificar permisos para acceder a la caja específica
+      if (boxId) {
+        const box = await SafeBox.findOrFail(boxId);
+        
+        if (user.role.name === 'user' && box.ownerId !== user.id) {
+          return response.forbidden({ message: 'No tienes permiso para acceder a los datos de esta caja' });
+        }
+        
+        if (user.role.name === 'provider' && box.providerId !== user.id) {
+          return response.forbidden({ message: 'No eres el proveedor de esta caja' });
+        }
+      }
+      
       // Conectar a MongoDB si aún no lo está
       if (!MongoClient.isConnectedToMongo()) {
         await MongoClient.connect()
       }
 
-      const { sensor, hours = 24 } = request.qs()
-      const boxId = 1 // ID fijo para la simulación
+      // Si no se especifica boxId, usar boxId 1 (comportamiento anterior para compatibilidad)
+      const targetBoxId = boxId ? parseInt(boxId) : 1;
       
       const hoursAgo = new Date()
       hoursAgo.setHours(hoursAgo.getHours() - parseInt(hours))
@@ -88,7 +125,7 @@ export default class SensorsController {
         case 'temperature':
           data = await MongoClient.collection<TemperatureSensor>('temperature_sensors')
             .find({ 
-              boxId,
+              boxId: targetBoxId,
               createdAt: { $gte: hoursAgo }
             })
             .sort({ createdAt: 1 })
@@ -97,7 +134,7 @@ export default class SensorsController {
         case 'humidity':
           data = await MongoClient.collection<HumiditySensor>('humidity_sensors')
             .find({ 
-              boxId,
+              boxId: targetBoxId,
               createdAt: { $gte: hoursAgo }
             })
             .sort({ createdAt: 1 })
@@ -106,7 +143,7 @@ export default class SensorsController {
         case 'weight':
           data = await MongoClient.collection<WeightSensor>('weight_sensors')
             .find({ 
-              boxId,
+              boxId: targetBoxId,
               createdAt: { $gte: hoursAgo }
             })
             .sort({ createdAt: 1 })
@@ -118,7 +155,11 @@ export default class SensorsController {
           })
       }
 
-      return response.ok(data)
+      return response.ok({
+        boxId: targetBoxId,
+        sensor,
+        data
+      })
     } catch (error) {
       return response.internalServerError({
         message: 'Error al obtener datos históricos',

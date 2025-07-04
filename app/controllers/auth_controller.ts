@@ -1,4 +1,5 @@
 import User from '#models/user'
+import Role from '#models/role'
 import { HttpContext } from '@adonisjs/core/http'
 import hash from '@adonisjs/core/services/hash'
 import vine from '@vinejs/vine'
@@ -13,6 +14,7 @@ export default class AuthController {
         email: vine.string().email(),
         password: vine.string().minLength(6),
         birthDate: vine.date().optional(),
+        roleId: vine.number().optional(), // Permitir especificar rol (opcional)
       })
     )
 
@@ -26,13 +28,28 @@ export default class AuthController {
         })
       }
       
+      // Por defecto, asignar rol de usuario (id: 3)
+      let roleId = 3; // Usuario normal
+      
+      if (data.roleId) {
+        // Si se especificó un rol, verificar que exista
+        const role = await Role.find(data.roleId)
+        if (role) {
+          roleId = role.id
+        }
+      }
+      
       const user = await User.create({
         name: data.name,
         lastName: data.lastName,
         birthDate: data.birthDate ? DateTime.fromJSDate(data.birthDate) : undefined,
         email: data.email,
-        password: data.password, // Dejar que el modelo maneje el hash
+        password: data.password,
+        roleId: roleId
       })
+
+      // Cargar el rol para incluirlo en la respuesta
+      await user.load('role')
 
       return response.created({ 
         message: 'Usuario registrado correctamente',
@@ -72,6 +89,9 @@ export default class AuthController {
       
       console.log('¡Autenticación exitosa!')
       
+      // Cargar el rol del usuario
+      await user.load('role')
+      
       const accessToken = await User.accessTokens.create(user, ['*'], {
         name: 'api_token',
         expiresIn: '7 days'
@@ -93,6 +113,17 @@ export default class AuthController {
       if (!user) {
         return response.unauthorized({ message: 'No autenticado' })
       }
+      
+      // Cargar el rol del usuario
+      await user.load('role')
+      
+      // Cargar las cajas según el rol
+      if (user.role.name === 'provider') {
+        await user.load('providedBoxes')
+      } else if (user.role.name === 'user') {
+        await user.load('ownedBoxes')
+      }
+      
       return response.ok({ user: user.serialize() })
     } catch (error) {
       return response.unauthorized({ 

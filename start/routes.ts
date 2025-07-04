@@ -15,6 +15,23 @@ router.group(() => {
   
 }).prefix('/api/auth')
 
+// Rutas para cajas fuertes (todas protegidas)
+router.group(() => {
+  router.get('/', '#controllers/safe_boxes_controller.index')
+  router.get('/:id', '#controllers/safe_boxes_controller.show')
+  router.post('/', '#controllers/safe_boxes_controller.store')
+  router.put('/:id', '#controllers/safe_boxes_controller.update')
+  router.delete('/:id', '#controllers/safe_boxes_controller.destroy')
+  router.post('/:id/generate-code', '#controllers/safe_boxes_controller.generatePropertyCode')
+}).prefix('/api/safe-boxes').use(middleware.auth())
+
+// Rutas para transferencia de cajas (todas protegidas)
+router.group(() => {
+  router.post('/request', '#controllers/box_transfer_controller.requestBox')
+  router.get('/', '#controllers/box_transfer_controller.listTransferRequests')
+  router.post('/:id/respond', '#controllers/box_transfer_controller.respondToRequest')
+}).prefix('/api/box-transfers').use(middleware.auth())
+
 // Rutas para sensores
 router.group(() => {
   router.get('/latest', '#controllers/sensors_controller.getLatestData')
