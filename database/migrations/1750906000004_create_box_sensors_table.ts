@@ -7,17 +7,14 @@ export default class extends BaseSchema {
     this.schema.createTable(this.tableName, (table) => {
       table.increments('id').primary()
       table.integer('box_id').unsigned().references('id').inTable('safe_boxes').onDelete('CASCADE')
-      table.enum('type', ['temperature', 'humidity', 'weight']).notNullable()
-      table.string('model').nullable()
+      table.integer('sensor_type_id').unsigned().references('id').inTable('sensor_types').notNullable()
       table.string('serial_number').nullable()
-      table.boolean('is_active').defaultTo(true)
-      table.json('config').nullable() // Para configuraciones específicas como límites, alertas, etc.
       
       table.timestamp('created_at', { useTz: true }).defaultTo(this.now())
       table.timestamp('updated_at', { useTz: true }).defaultTo(this.now())
       
       // Índice compuesto para asegurarse que una caja no tenga duplicados del mismo tipo de sensor
-      table.unique(['box_id', 'type'])
+      table.unique(['box_id', 'sensor_type_id'])
     })
   }
 
