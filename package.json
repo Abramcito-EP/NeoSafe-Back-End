@@ -58,6 +58,7 @@
     "@adonisjs/validator": "^13.0.2",
     "@adonisjs/websocket": "^1.0.12",
     "@vinejs/vine": "^3.0.1",
+    "eslint-plugin-unicorn": "^57.0.0",
     "luxon": "^3.6.1",
     "mongodb": "^6.17.0",
     "mysql2": "^3.14.1",
