@@ -6,13 +6,16 @@ router.group(() => {
   // Rutas públicas
   router.post('/register', '#controllers/auth_controller.register')
   router.post('/login', '#controllers/auth_controller.login')
-  
+
   // Rutas protegidas que requieren autenticación
   router.group(() => {
     router.get('/me', '#controllers/auth_controller.me')
     router.post('/logout', '#controllers/auth_controller.logout')
+    router.get('/perfil', [() => import('#controllers/perfil_controller'), 'show'])
+    router.patch('/perfil', [() => import('#controllers/perfil_controller'), 'update'])
+
   }).use(middleware.auth())
-  
+
 }).prefix('/api/auth')
 
 // Rutas para cajas fuertes (todas protegidas)
