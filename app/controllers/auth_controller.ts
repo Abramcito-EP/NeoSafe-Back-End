@@ -8,6 +8,7 @@ import { DateTime } from 'luxon'
 export default class AuthController {
   async register({ request, response }: HttpContext) {
     console.log('🚀 Iniciando proceso de registro...')
+    console.log('🚀 ¡Algo bárbaro!...')
     console.log('📡 Headers recibidos:', request.headers())
     console.log('📦 Body recibido:', request.body())
     console.log('🔍 URL completa:', request.url())
