@@ -7,6 +7,12 @@ import { DateTime } from 'luxon'
 
 export default class AuthController {
   async register({ request, response }: HttpContext) {
+    console.log('🚀 Iniciando proceso de registro...')
+    console.log('📡 Headers recibidos:', request.headers())
+    console.log('📦 Body recibido:', request.body())
+    console.log('🔍 URL completa:', request.url())
+    console.log('🔧 Método HTTP:', request.method())
+
     const userSchema = vine.compile(
       vine.object({
         name: vine.string(),
@@ -14,31 +20,54 @@ export default class AuthController {
         email: vine.string().email(),
         password: vine.string().minLength(6),
         birthDate: vine.date().optional(),
-        roleId: vine.number().optional(), // Permitir especificar rol (opcional)
+        roleId: vine.number().optional(),
       })
     )
 
     try {
+      console.log('✅ Validando datos con schema...')
       const data = await request.validateUsing(userSchema)
+      console.log('✅ Datos validados correctamente:', {
+        name: data.name,
+        lastName: data.lastName,
+        email: data.email,
+        birthDate: data.birthDate,
+        roleId: data.roleId,
+        passwordLength: data.password?.length
+      })
       
+      console.log('🔍 Verificando si el usuario ya existe...')
       const existingUser = await User.findBy('email', data.email)
       if (existingUser) {
+        console.log('❌ Usuario ya existe:', data.email)
         return response.badRequest({
           message: 'El usuario ya existe'
         })
       }
+      console.log('✅ Usuario no existe, procediendo con la creación...')
       
       // Por defecto, asignar rol de usuario (id: 3)
-      let roleId = 3; // Usuario normal
+      let roleId = 3;
       
       if (data.roleId) {
-        // Si se especificó un rol, verificar que exista
+        console.log('🔍 Verificando rol especificado:', data.roleId)
         const role = await Role.find(data.roleId)
         if (role) {
           roleId = role.id
+          console.log('✅ Rol encontrado:', role.name)
+        } else {
+          console.log('⚠️ Rol no encontrado, usando rol por defecto')
         }
       }
       
+      console.log('👤 Creando usuario con datos:', {
+        name: data.name,
+        lastName: data.lastName,
+        email: data.email,
+        roleId: roleId,
+        birthDate: data.birthDate
+      })
+
       const user = await User.create({
         name: data.name,
         lastName: data.lastName,
@@ -48,17 +77,31 @@ export default class AuthController {
         roleId: roleId
       })
 
-      // Cargar el rol para incluirlo en la respuesta
-      await user.load('role')
+      console.log('✅ Usuario creado con ID:', user.id)
 
-      return response.created({ 
+      await user.load('role')
+      console.log('✅ Rol cargado:', user.role?.name)
+
+      const responseData = { 
         message: 'Usuario registrado correctamente',
         user: user.serialize()
-      })
+      }
+
+      console.log('📤 Enviando respuesta exitosa')
+      return response.created(responseData)
     } catch (error) {
+      console.error('❌ Error en el proceso de registro:')
+      console.error('Tipo de error:', error.constructor.name)
+      console.error('Mensaje:', error.message)
+      console.error('Stack:', error.stack)
+      if (error.messages) {
+        console.error('Mensajes de validación:', error.messages)
+      }
+
       return response.badRequest({
         message: 'Error al registrar usuario',
-        errors: error.messages || error.message
+        errors: error.messages || error.message,
+        errorType: error.constructor.name
       })
     }
   }
