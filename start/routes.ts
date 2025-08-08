@@ -39,6 +39,9 @@ router.group(() => {
 router.group(() => {
   router.get('/latest', '#controllers/sensors_controller.getLatestData')
   router.get('/historical', '#controllers/sensors_controller.getHistoricalData')
+  router.get('/polling', '#controllers/sensors_controller.getPollingData')
+  router.post('/generate-test-data', '#controllers/sensors_controller.generateTestData')
+  router.get('/camera', '#controllers/sensors_controller.getCameraStream') // Agregar esta línea
 }).prefix('/api/sensors').use(middleware.auth())
 
 // Ruta por defecto
