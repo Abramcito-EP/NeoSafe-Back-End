@@ -41,7 +41,8 @@ router.group(() => {
   router.get('/historical', '#controllers/sensors_controller.getHistoricalData')
   router.get('/polling', '#controllers/sensors_controller.getPollingData')
   router.post('/generate-test-data', '#controllers/sensors_controller.generateTestData')
-  router.get('/camera', '#controllers/sensors_controller.getCameraStream') // Agregar esta línea
+  router.get('/camera', '#controllers/sensors_controller.getCameraStream')
+  router.put('/security-code', '#controllers/sensors_controller.updateSecurityCode') // Nueva ruta
 }).prefix('/api/sensors').use(middleware.auth())
 
 // Ruta por defecto
