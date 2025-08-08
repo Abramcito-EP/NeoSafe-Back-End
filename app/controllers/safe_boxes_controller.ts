@@ -93,59 +93,111 @@ export default class SafeBoxesController {
         return response.forbidden({ message: 'No tienes permiso para crear cajas fuertes' })
       }
       
-      // Validar datos de entrada
-    const boxSchema = vine.compile(
-      vine.object({
-        name: vine.string(),
-        model: vine.string(),
-        serialNumber: vine.string().unique(async (_value) => {
-        const exists = await SafeBox.findBy('serial_number', _value)
-        return !exists
-        }),
-        sensorTypes: vine.array(
-        vine.string().in(['temperature', 'humidity', 'weight'])
-        ).optional()
-      })
-    )
+      // Validar datos de entrada - Ajustar a tu estructura
+      const boxSchema = vine.compile(
+        vine.object({
+          name: vine.string().trim().minLength(1).maxLength(255),
+          modelId: vine.number().positive().optional(),
+          codeNfc: vine.string().trim().optional(),
+          sensorTypes: vine.array(
+            vine.string().in(['temperature', 'humidity', 'weight'])
+          ).optional()
+        })
+      )
       
       const data = await request.validateUsing(boxSchema)
+      
+      // Generar código de reclamo único
+      let claimCode;
+      let existingBox;
+      
+      do {
+        claimCode = SafeBox.generateClaimCode()
+        existingBox = await SafeBox.findBy('claimCode', claimCode)
+      } while (existingBox)
       
       // Crear la caja fuerte
       const box = await SafeBox.create({
         name: data.name,
-        model: data.model,
-        serialNumber: data.serialNumber,
+        modelId: data.modelId || 1, // Asignar un modelo por defecto
+        codeNfc: data.codeNfc || null,
+        claimCode: claimCode,
+        isClaimed: false,
         providerId: user.id, // El creador se convierte en el proveedor
         status: 'available'
       })
       
-      // Si se especificaron tipos de sensores, crearlos
+      // Crear sensores con la nueva estructura (usando sensor_type_id)
       if (data.sensorTypes && data.sensorTypes.length > 0) {
-        const sensors = data.sensorTypes.map(type => ({
-          boxId: box.id,
-          type: type as 'temperature' | 'humidity' | 'weight',
-          isActive: true
-        }))
+        const sensors = data.sensorTypes.map(type => {
+          // Mapear tipos de sensores a IDs (deberías tener estos IDs en tu tabla sensor_types)
+          let sensorTypeId;
+          switch (type) {
+            case 'temperature': sensorTypeId = 1; break;
+            case 'humidity': sensorTypeId = 2; break;
+            case 'weight': sensorTypeId = 3; break;
+            default: sensorTypeId = 1;
+          }
+          
+          return {
+            boxId: box.id,
+            sensorTypeId: sensorTypeId,
+            serialNumber: `${type.toUpperCase()}-${box.id}-${Date.now()}`
+          }
+        })
         
         await BoxSensor.createMany(sensors)
       } else {
         // Por defecto, crear los tres tipos de sensores
         await BoxSensor.createMany([
-          { boxId: box.id, type: 'temperature', isActive: true },
-          { boxId: box.id, type: 'humidity', isActive: true },
-          { boxId: box.id, type: 'weight', isActive: true }
+          { 
+            boxId: box.id, 
+            sensorTypeId: 1, // temperature
+            serialNumber: `TEMP-${box.id}-${Date.now()}`
+          },
+          { 
+            boxId: box.id, 
+            sensorTypeId: 2, // humidity
+            serialNumber: `HUM-${box.id}-${Date.now()}`
+          },
+          { 
+            boxId: box.id, 
+            sensorTypeId: 3, // weight
+            serialNumber: `WEIGHT-${box.id}-${Date.now()}`
+          }
         ])
       }
       
-      // Cargar relaciones para la respuesta
-      await box.load('provider')
-      await box.load('sensors')
+      // Temporalmente comentar la carga de relaciones hasta que funcione
+      // await box.load('provider')
+      // await box.load('sensors')
       
-      return response.created(box)
+      return response.created({
+        id: box.id,
+        name: box.name,
+        modelId: box.modelId,
+        codeNfc: box.codeNfc,
+        claimCode: box.claimCode,
+        isClaimed: box.isClaimed,
+        providerId: box.providerId,
+        status: box.status,
+        createdAt: box.createdAt,
+        updatedAt: box.updatedAt
+      })
     } catch (error) {
+      console.error('Error al crear caja fuerte:', error)
+      
+      if (error.messages) {
+        // Error de validación de Vine
+        return response.badRequest({
+          message: 'Error de validación',
+          errors: error.messages
+        })
+      }
+      
       return response.badRequest({
         message: 'Error al crear la caja fuerte',
-        errors: error.messages || error.message
+        error: error.message
       })
     }
   }
@@ -170,12 +222,12 @@ export default class SafeBoxesController {
         return response.forbidden({ message: 'Los usuarios regulares no pueden actualizar cajas' })
       }
       
-      // Validar datos de entrada
+      // Validar datos de entrada - Corregir la validación
       const boxSchema = vine.compile(
         vine.object({
-          name: vine.string().optional(),
-          model: vine.string().optional(),
-          serialNumber: vine.string().optional(),
+          name: vine.string().trim().minLength(1).maxLength(100).optional(),
+          model: vine.string().trim().minLength(1).maxLength(100).optional(),
+          serialNumber: vine.string().trim().minLength(1).maxLength(50).optional(),
           status: vine.string().in(['available', 'pending_transfer', 'transferred']).optional()
         })
       )
@@ -197,13 +249,22 @@ export default class SafeBoxesController {
       
       return response.ok(box)
     } catch (error) {
+      console.error('Error al actualizar caja fuerte:', error)
+      
       if (error.name === 'ModelNotFoundError') {
         return response.notFound({ message: 'Caja fuerte no encontrada' })
       }
       
+      if (error.messages) {
+        return response.badRequest({
+          message: 'Error de validación',
+          errors: error.messages
+        })
+      }
+      
       return response.badRequest({
         message: 'Error al actualizar la caja fuerte',
-        errors: error.messages || error.message
+        error: error.message
       })
     }
   }
@@ -310,6 +371,71 @@ export default class SafeBoxesController {
       
       return response.internalServerError({
         message: 'Error al generar el código de propiedad',
+        error: error.message
+      })
+    }
+  }
+
+  /**
+   * Generar código de reclamo para una caja (solo provider dueño de la caja)
+   */
+  async generateClaimCode({ params, auth, response }: HttpContext) {
+    try {
+      const { id } = params
+      const user = auth.user!
+      await user.load('role')
+      
+      // Solo los proveedores pueden generar códigos
+      if (user.role.name !== 'provider') {
+        return response.forbidden({ message: 'Solo los proveedores pueden generar códigos de reclamo' })
+      }
+      
+      const box = await SafeBox.findOrFail(id)
+      
+      // Verificar que la caja pertenece al proveedor
+      if (box.providerId !== user.id) {
+        return response.forbidden({ message: 'No eres el proveedor de esta caja' })
+      }
+      
+      // Verificar que la caja está disponible
+      if (box.status !== 'available') {
+        return response.badRequest({ 
+          message: 'Solo se pueden generar códigos para cajas disponibles' 
+        })
+      }
+      
+      // Verificar que la caja no ha sido reclamada
+      if (box.isClaimed) {
+        return response.badRequest({ 
+          message: 'Esta caja ya ha sido reclamada' 
+        })
+      }
+      
+      // Generar código único
+      let claimCode;
+      let existingBox;
+      
+      do {
+        claimCode = SafeBox.generateClaimCode()
+        existingBox = await SafeBox.findBy('claimCode', claimCode)
+      } while (existingBox)
+      
+      // Actualizar la caja con el código
+      box.claimCode = claimCode
+      await box.save()
+      
+      return response.ok({
+        message: 'Código de reclamo generado con éxito',
+        claimCode,
+        box
+      })
+    } catch (error) {
+      if (error.name === 'ModelNotFoundError') {
+        return response.notFound({ message: 'Caja fuerte no encontrada' })
+      }
+      
+      return response.internalServerError({
+        message: 'Error al generar el código de reclamo',
         error: error.message
       })
     }

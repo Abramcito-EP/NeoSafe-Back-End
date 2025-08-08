@@ -10,27 +10,20 @@ export default class BoxSensor extends BaseModel {
   @column({ columnName: 'box_id' })
   declare boxId: number
 
-  @column()
-  declare type: 'temperature' | 'humidity' | 'weight'
-
-  @column()
-  declare model: string | null
+  @column({ columnName: 'sensor_type_id' })
+  declare sensorTypeId: number
 
   @column({ columnName: 'serial_number' })
   declare serialNumber: string | null
 
-  @column({ columnName: 'is_active' })
-  declare isActive: boolean
-
-  @column()
-  declare config: any | null
-
-  @column.dateTime({ autoCreate: true })
+  @column.dateTime({ autoCreate: true, columnName: 'created_at' })
   declare createdAt: DateTime
 
-  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  @column.dateTime({ autoCreate: true, autoUpdate: true, columnName: 'updated_at' })
   declare updatedAt: DateTime
 
-  @belongsTo(() => SafeBox)
-  declare safeBox: BelongsTo<typeof SafeBox>
+  @belongsTo(() => SafeBox, {
+    foreignKey: 'boxId',
+  })
+  declare box: BelongsTo<typeof SafeBox>
 }

@@ -28,6 +28,7 @@ router.group(() => {
   router.post('/:id/generate-code', '#controllers/safe_boxes_controller.generatePropertyCode')
 }).prefix('/api/safe-boxes').use(middleware.auth())
 
+
 // Rutas para transferencia de cajas (todas protegidas)
 router.group(() => {
   router.post('/request', '#controllers/box_transfer_controller.requestBox')
