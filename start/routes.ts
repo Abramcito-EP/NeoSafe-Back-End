@@ -13,6 +13,7 @@ router.group(() => {
     router.post('/logout', '#controllers/auth_controller.logout')
     router.get('/perfil', [() => import('#controllers/perfil_controller'), 'show'])
     router.put('/perfil', [() => import('#controllers/perfil_controller'), 'update'])
+    router.put('/perfil/password', [() => import('#controllers/perfil_controller'), 'updatePassword'])
 
   }).use(middleware.auth())
 

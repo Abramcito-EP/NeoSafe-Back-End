@@ -1,6 +1,8 @@
 import User from '#models/user'
 import { HttpContext } from '@adonisjs/core/http'
 import vine from '@vinejs/vine'
+import { DateTime } from 'luxon'
+import hash from '@adonisjs/core/services/hash'
 
 export default class PerfilController {
     async show({ auth, response }: HttpContext) {
@@ -62,7 +64,7 @@ export default class PerfilController {
             // Actualizar campos del perfil
             if (data.name) user.name = data.name
             if (data.lastName) user.lastName = data.lastName
-            if (data.birthDate) user.birthDate = data.birthDate
+            if (data.birthDate) user.birthDate = DateTime.fromJSDate(data.birthDate)
             if (data.password) user.password = data.password
 
             await user.save()
@@ -87,6 +89,44 @@ export default class PerfilController {
         } catch (error) {
             return response.badRequest({
                 message: 'Error al actualizar perfil',
+                errors: error.messages || error.message,
+            })
+        }
+    }
+
+    async updatePassword({ request, auth, response }: HttpContext) {
+        const passwordSchema = vine.compile(
+            vine.object({
+                currentPassword: vine.string().minLength(1),
+                password: vine.string().minLength(6).confirmed(),
+            })
+        )
+
+        try {
+            await auth.authenticate()
+            const data = await request.validateUsing(passwordSchema)
+
+            const user = await User.findOrFail(auth.user!.id)
+
+            // Verificar contraseña actual
+            const isCurrentPasswordValid = await hash.verify(user.password, data.currentPassword)
+
+            if (!isCurrentPasswordValid) {
+                return response.badRequest({
+                    message: 'La contraseña actual es incorrecta',
+                })
+            }
+
+            // Actualizar contraseña
+            user.password = data.password
+            await user.save()
+
+            return response.ok({
+                message: 'Contraseña actualizada correctamente',
+            })
+        } catch (error) {
+            return response.badRequest({
+                message: 'Error al actualizar contraseña',
                 errors: error.messages || error.message,
             })
         }
