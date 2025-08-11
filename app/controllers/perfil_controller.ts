@@ -30,7 +30,10 @@ export default class PerfilController {
     async update({ request, auth, response }: HttpContext) {
         const profileSchema = vine.compile(
             vine.object({
+                name: vine.string().minLength(2).optional(),
+                lastName: vine.string().minLength(2).optional(),
                 email: vine.string().email().optional(),
+                birthDate: vine.date().optional(),
                 password: vine.string().minLength(6).confirmed().optional(),
             })
         )
@@ -41,7 +44,8 @@ export default class PerfilController {
 
             const user = await User.findOrFail(auth.user!.id)
 
-            if (data.email) {
+            // Verificar si el email ya existe
+            if (data.email && data.email !== user.email) {
                 const existing = await User.query()
                     .where('email', data.email)
                     .whereNot('id', user.id)
@@ -52,16 +56,34 @@ export default class PerfilController {
                         message: 'Ya existe un usuario con ese correo electrónico',
                     })
                 }
-
                 user.email = data.email
             }
 
-            if (data.password) {
-                user.password = data.password
-            }
+            // Actualizar campos del perfil
+            if (data.name) user.name = data.name
+            if (data.lastName) user.lastName = data.lastName
+            if (data.birthDate) user.birthDate = data.birthDate
+            if (data.password) user.password = data.password
+
             await user.save()
 
-            return response.ok({ message: 'Perfil actualizado correctamente' })
+            // Recargar el usuario con las relaciones
+            const updatedUser = await User.query()
+                .where('id', user.id)
+                .preload('role')
+                .firstOrFail()
+
+            return response.ok({
+                message: 'Perfil actualizado correctamente',
+                user: {
+                    id: updatedUser.id,
+                    name: updatedUser.name,
+                    lastName: updatedUser.lastName,
+                    email: updatedUser.email,
+                    birthDate: updatedUser.birthDate,
+                    role: updatedUser.role?.name,
+                },
+            })
         } catch (error) {
             return response.badRequest({
                 message: 'Error al actualizar perfil',

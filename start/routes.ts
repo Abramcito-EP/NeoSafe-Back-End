@@ -12,7 +12,7 @@ router.group(() => {
     router.get('/me', '#controllers/auth_controller.me')
     router.post('/logout', '#controllers/auth_controller.logout')
     router.get('/perfil', [() => import('#controllers/perfil_controller'), 'show'])
-    router.patch('/perfil', [() => import('#controllers/perfil_controller'), 'update'])
+    router.put('/perfil', [() => import('#controllers/perfil_controller'), 'update'])
 
   }).use(middleware.auth())
 
