@@ -2,25 +2,131 @@ import { HttpContext } from '@adonisjs/core/http'
 import MongoClient from '#services/mongo_client'
 import SafeBox from '#models/safe_box'
 
+// Interfaces actualizadas para la estructura REAL de MongoDB
 interface TemperatureSensor {
-  boxId: number
-  temperature: number
-  createdAt: Date
+  box_id: number
+  sensor: string
+  valor: number
+  timestamp: Date
 }
 
 interface HumiditySensor {
-  boxId: number
-  humidity: number
-  createdAt: Date
+  box_id: number
+  sensor: string
+  valor: number
+  timestamp: Date
 }
 
 interface WeightSensor {
-  boxId: number
-  weight: number
-  createdAt: Date
+  box_id: number
+  sensor: string
+  valor: number
+  timestamp: Date
 }
 
 export default class SensorsController {
+  
+  // Método actualizado para obtener datos REALES de las colecciones correctas
+  async getPollingData({ auth, response }: HttpContext) {
+    try {
+      await auth.user! // Solo verificar que esté autenticado
+      const targetBoxId = 1;
+      
+      // Conectar a MongoDB
+      if (!MongoClient.isConnectedToMongo()) {
+        await MongoClient.connect()
+      }
+
+      console.log('📊 Obteniendo datos REALES de sensores desde MongoDB...');
+      
+      // Obtener los últimos datos REALES de cada colección de la Raspberry
+      const [latestTemperature, latestHumidity, latestWeight] = await Promise.all([
+        MongoClient.collection<TemperatureSensor>('temperatura')
+          .find({ box_id: targetBoxId })
+          .sort({ timestamp: -1 })
+          .limit(1)
+          .toArray(),
+        
+        MongoClient.collection<HumiditySensor>('humedad')
+          .find({ box_id: targetBoxId })
+          .sort({ timestamp: -1 })
+          .limit(1)
+          .toArray(),
+        
+        MongoClient.collection<WeightSensor>('peso')
+          .find({ box_id: targetBoxId })
+          .sort({ timestamp: -1 })
+          .limit(1)
+          .toArray()
+      ]);
+
+      // Preparar respuesta con los datos reales o null si no hay datos
+      const sensorData = {
+        boxId: targetBoxId,
+        timestamp: new Date().toISOString(),
+        sensors: {
+          temperature: latestTemperature.length > 0 ? {
+            value: latestTemperature[0].valor,
+            unit: "°C",
+            timestamp: latestTemperature[0].timestamp.toISOString(),
+            sensor: latestTemperature[0].sensor
+          } : null,
+          humidity: latestHumidity.length > 0 ? {
+            value: latestHumidity[0].valor,
+            unit: "%",
+            timestamp: latestHumidity[0].timestamp.toISOString(),
+            sensor: latestHumidity[0].sensor
+          } : null,
+          weight: latestWeight.length > 0 ? {
+            value: latestWeight[0].valor,
+            unit: "kg",
+            timestamp: latestWeight[0].timestamp.toISOString(),
+            sensor: latestWeight[0].sensor
+          } : null
+        }
+      };
+
+      // Log para debug - mostrar datos encontrados
+      if (latestTemperature.length > 0) {
+        console.log(`🌡️ Temperatura: ${latestTemperature[0].valor}°C (${latestTemperature[0].sensor}) - ${latestTemperature[0].timestamp}`);
+      } else {
+        console.log('🌡️ No hay datos de temperatura en colección "temperatura"');
+      }
+      
+      if (latestHumidity.length > 0) {
+        console.log(`💧 Humedad: ${latestHumidity[0].valor}% (${latestHumidity[0].sensor}) - ${latestHumidity[0].timestamp}`);
+      } else {
+        console.log('💧 No hay datos de humedad en colección "humedad"');
+      }
+      
+      if (latestWeight.length > 0) {
+        console.log(`⚖️ Peso: ${latestWeight[0].valor}kg (${latestWeight[0].sensor}) - ${latestWeight[0].timestamp}`);
+      } else {
+        console.log('⚖️ No hay datos de peso en colección "peso"');
+      }
+      
+      return response.ok(sensorData);
+
+    } catch (error) {
+      console.error('❌ Error en polling de sensores:', error);
+      
+      // Fallback: devolver estructura vacía si hay error
+      const fallbackData = {
+        boxId: 1,
+        timestamp: new Date().toISOString(),
+        sensors: {
+          temperature: null,
+          humidity: null,
+          weight: null
+        }
+      };
+      
+      console.log('⚠️ Usando datos de fallback debido a error');
+      return response.ok(fallbackData);
+    }
+  }
+
+  // Método actualizado para obtener últimos datos REALES
   async getLatestData({ request, auth, response }: HttpContext) {
     try {
       const { boxId } = request.qs();
@@ -45,50 +151,70 @@ export default class SensorsController {
         await MongoClient.connect()
       }
 
-      // Si no se especifica boxId, usar boxId 1 (comportamiento anterior para compatibilidad)
       const targetBoxId = boxId ? parseInt(boxId) : 1;
 
-      const latestTemperature = await MongoClient.collection<TemperatureSensor>('temperature_sensors')
-        .find({ boxId: targetBoxId })
-        .sort({ createdAt: -1 })
-        .limit(1)
-        .toArray()
+      console.log(`📊 Obteniendo últimos datos REALES para boxId: ${targetBoxId}`);
 
-      const latestHumidity = await MongoClient.collection<HumiditySensor>('humidity_sensors')
-        .find({ boxId: targetBoxId })
-        .sort({ createdAt: -1 })
-        .limit(1)
-        .toArray()
+      // Obtener de las colecciones REALES de la Raspberry
+      const [latestTemperature, latestHumidity, latestWeight] = await Promise.all([
+        MongoClient.collection<TemperatureSensor>('temperatura')
+          .find({ box_id: targetBoxId })
+          .sort({ timestamp: -1 })
+          .limit(1)
+          .toArray(),
+        
+        MongoClient.collection<HumiditySensor>('humedad')
+          .find({ box_id: targetBoxId })
+          .sort({ timestamp: -1 })
+          .limit(1)
+          .toArray(),
+        
+        MongoClient.collection<WeightSensor>('peso')
+          .find({ box_id: targetBoxId })
+          .sort({ timestamp: -1 })
+          .limit(1)
+          .toArray()
+      ]);
 
-      const latestWeight = await MongoClient.collection<WeightSensor>('weight_sensors')
-        .find({ boxId: targetBoxId })
-        .sort({ createdAt: -1 })
-        .limit(1)
-        .toArray()
-
-      return response.ok({
+      const result = {
         boxId: targetBoxId,
-        temperature: latestTemperature.length > 0 ? {
-          value: latestTemperature[0].temperature,
-          timestamp: latestTemperature[0].createdAt
-        } : null,
-        humidity: latestHumidity.length > 0 ? {
-          value: latestHumidity[0].humidity,
-          timestamp: latestHumidity[0].createdAt
-        } : null,
-        weight: latestWeight.length > 0 ? {
-          value: latestWeight[0].weight,
-          timestamp: latestWeight[0].createdAt
-        } : null
-      })
+        timestamp: new Date().toISOString(),
+        sensors: {
+          temperature: latestTemperature.length > 0 ? {
+            value: latestTemperature[0].valor,
+            unit: "°C",
+            timestamp: latestTemperature[0].timestamp.toISOString(),
+            sensor: latestTemperature[0].sensor
+          } : null,
+          humidity: latestHumidity.length > 0 ? {
+            value: latestHumidity[0].valor,
+            unit: "%",
+            timestamp: latestHumidity[0].timestamp.toISOString(),
+            sensor: latestHumidity[0].sensor
+          } : null,
+          weight: latestWeight.length > 0 ? {
+            value: latestWeight[0].valor,
+            unit: "kg",
+            timestamp: latestWeight[0].timestamp.toISOString(),
+            sensor: latestWeight[0].sensor
+          } : null
+        }
+      }
+
+      console.log(`✅ Últimos datos REALES obtenidos para boxId: ${targetBoxId}`);
+      
+      return response.ok(result)
+      
     } catch (error) {
+      console.error('❌ Error obteniendo últimos datos:', error);
       return response.internalServerError({
-        message: 'Error al obtener datos de sensores',
+        message: 'Error al obtener últimos datos de sensores',
         error: error.message
       })
     }
   }
 
+  // Método actualizado para datos históricos REALES
   async getHistoricalData({ request, auth, response }: HttpContext) {
     try {
       const { sensor, hours = 24, boxId } = request.qs();
@@ -113,7 +239,6 @@ export default class SensorsController {
         await MongoClient.connect()
       }
 
-      // Si no se especifica boxId, usar boxId 1 (comportamiento anterior para compatibilidad)
       const targetBoxId = boxId ? parseInt(boxId) : 1;
       
       const hoursAgo = new Date()
@@ -121,46 +246,59 @@ export default class SensorsController {
 
       let data = []
 
+      console.log(`📊 Obteniendo datos históricos REALES de ${sensor} para boxId: ${targetBoxId} desde ${hoursAgo}`);
+
+      // Usar las colecciones REALES de la Raspberry
       switch (sensor) {
         case 'temperature':
-          data = await MongoClient.collection<TemperatureSensor>('temperature_sensors')
+          data = await MongoClient.collection<TemperatureSensor>('temperatura')
             .find({ 
-              boxId: targetBoxId,
-              createdAt: { $gte: hoursAgo }
+              box_id: targetBoxId,
+              timestamp: { $gte: hoursAgo }
             })
-            .sort({ createdAt: 1 })
+            .sort({ timestamp: 1 })
             .toArray()
           break
         case 'humidity':
-          data = await MongoClient.collection<HumiditySensor>('humidity_sensors')
+          data = await MongoClient.collection<HumiditySensor>('humedad')
             .find({ 
-              boxId: targetBoxId,
-              createdAt: { $gte: hoursAgo }
+              box_id: targetBoxId,
+              timestamp: { $gte: hoursAgo }
             })
-            .sort({ createdAt: 1 })
+            .sort({ timestamp: 1 })
             .toArray()
           break
         case 'weight':
-          data = await MongoClient.collection<WeightSensor>('weight_sensors')
+          data = await MongoClient.collection<WeightSensor>('peso')
             .find({ 
-              boxId: targetBoxId,
-              createdAt: { $gte: hoursAgo }
+              box_id: targetBoxId,
+              timestamp: { $gte: hoursAgo }
             })
-            .sort({ createdAt: 1 })
+            .sort({ timestamp: 1 })
             .toArray()
           break
         default:
           return response.badRequest({
-            message: 'Tipo de sensor no válido'
+            message: 'Tipo de sensor no válido. Use: temperature, humidity, weight'
           })
       }
+
+      // Transformar datos para mantener compatibilidad con la respuesta anterior
+      const transformedData = data.map(item => ({
+        value: item.valor,
+        timestamp: item.timestamp,
+        sensor: item.sensor
+      }))
+
+      console.log(`✅ Obtenidos ${transformedData.length} registros históricos REALES de ${sensor}`);
 
       return response.ok({
         boxId: targetBoxId,
         sensor,
-        data
+        data: transformedData
       })
     } catch (error) {
+      console.error('❌ Error obteniendo datos históricos:', error);
       return response.internalServerError({
         message: 'Error al obtener datos históricos',
         error: error.message
@@ -168,165 +306,8 @@ export default class SensorsController {
     }
   }
 
-  // Método específico para polling con datos dinámicos
-  async getPollingData({ auth, response }: HttpContext) {
-    try {
-      await auth.user! // Solo verificar que esté autenticado
-      const targetBoxId = 1;
-      
-      // Conectar a MongoDB
-      if (!MongoClient.isConnectedToMongo()) {
-        await MongoClient.connect()
-      }
-
-      const now = new Date();
-      
-      // Generar nuevos datos para simular lecturas en tiempo real
-      console.log('📊 Generando nuevos datos de sensores para polling...');
-      
-      // Generar nuevos valores realistas
-      const newTemperature = parseFloat((Math.random() * 10 + 20).toFixed(1)); // 20-30°C
-      const newHumidity = parseFloat((Math.random() * 30 + 45).toFixed(1)); // 45-75%
-      const newWeight = parseFloat((Math.random() * 2 + 1.5).toFixed(2)); // 1.5-3.5kg
-      
-      // Insertar nuevos datos en MongoDB
-      await Promise.all([
-        MongoClient.collection('temperature_sensors').insertOne({
-          boxId: targetBoxId,
-          temperature: newTemperature,
-          createdAt: now
-        }),
-        
-        MongoClient.collection('humidity_sensors').insertOne({
-          boxId: targetBoxId,
-          humidity: newHumidity,
-          createdAt: now
-        }),
-        
-        MongoClient.collection('weight_sensors').insertOne({
-          boxId: targetBoxId,
-          weight: newWeight,
-          createdAt: now
-        })
-      ]);
-
-      // Preparar respuesta con los nuevos datos
-      const sensorData = {
-        boxId: targetBoxId,
-        timestamp: now.toISOString(),
-        sensors: {
-          temperature: {
-            value: newTemperature,
-            unit: "°C",
-            timestamp: now.toISOString()
-          },
-          humidity: {
-            value: newHumidity,
-            unit: "%",
-            timestamp: now.toISOString()
-          },
-          weight: {
-            value: newWeight,
-            unit: "kg",
-            timestamp: now.toISOString()
-          }
-        }
-      };
-
-      console.log(`📡 Enviando datos: Temp: ${newTemperature}°C, Humedad: ${newHumidity}%, Peso: ${newWeight}kg`);
-      
-      return response.ok(sensorData);
-
-    } catch (error) {
-      console.error('❌ Error en polling de sensores:', error);
-      
-      // Fallback con datos simulados si hay error
-      const now = new Date().toISOString();
-      const fallbackData = {
-        boxId: 1,
-        timestamp: now,
-        sensors: {
-          temperature: {
-            value: parseFloat((Math.random() * 10 + 20).toFixed(1)),
-            unit: "°C",
-            timestamp: now
-          },
-          humidity: {
-            value: parseFloat((Math.random() * 30 + 45).toFixed(1)),
-            unit: "%",
-            timestamp: now
-          },
-          weight: {
-            value: parseFloat((Math.random() * 2 + 1.5).toFixed(2)),
-            unit: "kg",
-            timestamp: now
-          }
-        }
-      };
-      
-      console.log('⚠️ Usando datos de fallback debido a error');
-      return response.ok(fallbackData);
-    }
-  }
-
-  // Método adicional para generar datos de prueba (opcional)
-  async generateTestData({ auth, response }: HttpContext) {
-    try {
-      await auth.user! // Verificar autenticación
-      const targetBoxId = 1;
-      
-      // Conectar a MongoDB
-      if (!MongoClient.isConnectedToMongo()) {
-        await MongoClient.connect()
-      }
-
-      // Generar datos de prueba para los últimos 60 minutos
-      const now = new Date();
-      const dataPoints = 60; // 60 puntos de datos (1 por minuto)
-
-      console.log(`🧪 Generando ${dataPoints} puntos de datos de prueba...`);
-
-      for (let i = 0; i < dataPoints; i++) {
-        const timestamp = new Date(now.getTime() - (i * 60000)); // Cada minuto hacia atrás
-
-        // Datos de temperatura (20-35°C con variación)
-        await MongoClient.collection('temperature_sensors').insertOne({
-          boxId: targetBoxId,
-          temperature: parseFloat((Math.random() * 15 + 20).toFixed(1)),
-          createdAt: timestamp
-        });
-
-        // Datos de humedad (30-80% con variación)
-        await MongoClient.collection('humidity_sensors').insertOne({
-          boxId: targetBoxId,
-          humidity: parseFloat((Math.random() * 50 + 30).toFixed(1)),
-          createdAt: timestamp
-        });
-
-        // Datos de peso (1-5kg con variación)
-        await MongoClient.collection('weight_sensors').insertOne({
-          boxId: targetBoxId,
-          weight: parseFloat((Math.random() * 4 + 1).toFixed(2)),
-          createdAt: timestamp
-        });
-      }
-
-      console.log(`✅ Generados ${dataPoints} puntos de datos de prueba para boxId: ${targetBoxId}`);
-
-      return response.ok({
-        message: `Datos de prueba generados exitosamente para boxId: ${targetBoxId}`,
-        dataPoints: dataPoints,
-        timeRange: '60 minutos'
-      });
-
-    } catch (error) {
-      console.error('❌ Error generando datos de prueba:', error);
-      return response.internalServerError({
-        message: 'Error al generar datos de prueba',
-        error: error.message
-      });
-    }
-  }
+  // ELIMINAR método generateTestData ya que ahora usamos datos reales
+  // async generateTestData() { ... } // COMENTADO O ELIMINADO
 
   async getCameraStream({ auth, response }: HttpContext) {
     try {
@@ -348,6 +329,79 @@ export default class SensorsController {
       console.error('❌ Error obteniendo configuración de cámara:', error);
       return response.internalServerError({
         message: 'Error al obtener configuración de cámara',
+        error: error.message
+      });
+    }
+  }
+
+  async updateSecurityCode({ request, auth, response }: HttpContext) {
+    try {
+      const user = auth.user! // Verificar autenticación
+    
+      // Validar datos de entrada
+      const { boxId, codigo } = request.body()
+      
+      if (!boxId || !codigo) {
+        return response.badRequest({
+          message: 'boxId y codigo son requeridos'
+        })
+      }
+      
+      // Validar que el código sea numérico y tenga al menos 4 dígitos
+      const codigoNumerico = parseInt(codigo)
+      if (isNaN(codigoNumerico) || codigo.toString().length < 4) {
+        return response.badRequest({
+          message: 'El código debe ser numérico y tener al menos 4 dígitos'
+        })
+      }
+      
+      // Conectar a MongoDB
+      if (!MongoClient.isConnectedToMongo()) {
+        await MongoClient.connect()
+      }
+      
+      console.log(`🔐 Actualizando código de seguridad para boxId: ${boxId}`);
+      
+      // Buscar y actualizar el documento existente
+      const updateResult = await MongoClient.collection('seguridad').updateOne(
+        { box: boxId }, // Filtro: buscar por boxId
+        { 
+          $set: { 
+            codigo: codigoNumerico,
+            updatedAt: new Date()
+          } 
+        }
+      );
+      
+      if (updateResult.matchedCount === 0) {
+        return response.notFound({
+          message: `No se encontró registro de seguridad para boxId: ${boxId}`
+        });
+      }
+      
+      if (updateResult.modifiedCount === 0) {
+        return response.badRequest({
+          message: 'No se pudo actualizar el código de seguridad'
+        });
+      }
+      
+      // Obtener el documento actualizado para confirmación
+      const updatedDocument = await MongoClient.collection('seguridad').findOne({ box: boxId });
+      
+      console.log(`✅ Código de seguridad actualizado exitosamente para boxId: ${boxId}`);
+      
+      return response.ok({
+        message: 'Código de seguridad actualizado exitosamente',
+        boxId: boxId,
+        newCode: codigoNumerico,
+        updatedAt: new Date().toISOString(),
+        document: updatedDocument
+      });
+      
+    } catch (error) {
+      console.error('❌ Error actualizando código de seguridad:', error);
+      return response.internalServerError({
+        message: 'Error al actualizar código de seguridad',
         error: error.message
       });
     }
