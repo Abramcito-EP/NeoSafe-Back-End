@@ -20,7 +20,7 @@ export default class AuthController {
         lastName: vine.string().trim(),
         email: vine.string().email(),
         password: vine.string().minLength(6),
-        birthDate: vine.date().optional(),
+        birthDate: vine.string().optional(),
         roleId: vine.number().optional(),
       })
     )
@@ -72,7 +72,7 @@ export default class AuthController {
       const user = await User.create({
         name: data.name,
         lastName: data.lastName,
-        birthDate: data.birthDate ? DateTime.fromJSDate(data.birthDate) : undefined,
+        birthDate: data.birthDate ? DateTime.fromSQL(data.birthDate) : undefined,
         email: data.email,
         password: data.password,
         roleId: roleId

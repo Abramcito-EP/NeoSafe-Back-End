@@ -12,14 +12,17 @@ export default class SafeBox extends BaseModel {
   @column()
   declare name: string
 
-  @column()
-  declare model: string
+  @column({ columnName: 'model_id' })
+  declare modelId: number
 
-  @column({ columnName: 'serial_number' })
-  declare serialNumber: string
+  @column({ columnName: 'code_nfc' })
+  declare codeNfc: string | null
 
-  @column({ columnName: 'property_code' })
-  declare propertyCode: string | null
+  @column({ columnName: 'claim_code' })
+  declare claimCode: string
+
+  @column({ columnName: 'is_claimed' })
+  declare isClaimed: boolean
 
   @column({ columnName: 'owner_id' })
   declare ownerId: number | null
@@ -30,38 +33,39 @@ export default class SafeBox extends BaseModel {
   @column()
   declare status: 'available' | 'pending_transfer' | 'transferred'
 
-  @column.dateTime({ columnName: 'transfer_requested_at' })
-  declare transferRequestedAt: DateTime | null
-
-  @column.dateTime({ autoCreate: true })
+  @column.dateTime({ autoCreate: true, columnName: 'created_at' })
   declare createdAt: DateTime
 
-  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  @column.dateTime({ autoCreate: true, autoUpdate: true, columnName: 'updated_at' })
   declare updatedAt: DateTime
 
   @belongsTo(() => User, {
-    foreignKey: 'owner_id',
+    foreignKey: 'ownerId',
   })
   declare owner: BelongsTo<typeof User>
 
   @belongsTo(() => User, {
-    foreignKey: 'provider_id',
+    foreignKey: 'providerId',
   })
   declare provider: BelongsTo<typeof User>
 
-  @hasMany(() => BoxSensor)
+  @hasMany(() => BoxSensor, {
+    foreignKey: 'boxId'
+  })
   declare sensors: HasMany<typeof BoxSensor>
 
-  @hasMany(() => BoxTransferRequest)
+  @hasMany(() => BoxTransferRequest, {
+    foreignKey: 'boxId'
+  })
   declare transferRequests: HasMany<typeof BoxTransferRequest>
 
-  // Método para generar un código de propiedad aleatorio de 6 caracteres
-  static generatePropertyCode(): string {
+  // Método para generar un código de reclamo aleatorio de 8 caracteres
+  static generateClaimCode(): string {
     const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let result = '';
     const charactersLength = characters.length;
     
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 8; i++) {
       result += characters.charAt(Math.floor(Math.random() * charactersLength));
     }
     

@@ -12,7 +12,8 @@ router.group(() => {
     router.get('/me', '#controllers/auth_controller.me')
     router.post('/logout', '#controllers/auth_controller.logout')
     router.get('/perfil', [() => import('#controllers/perfil_controller'), 'show'])
-    router.patch('/perfil', [() => import('#controllers/perfil_controller'), 'update'])
+    router.put('/perfil', [() => import('#controllers/perfil_controller'), 'update'])
+    router.put('/perfil/password', [() => import('#controllers/perfil_controller'), 'updatePassword'])
 
   }).use(middleware.auth())
 
@@ -28,6 +29,7 @@ router.group(() => {
   router.post('/:id/generate-code', '#controllers/safe_boxes_controller.generatePropertyCode')
 }).prefix('/api/safe-boxes').use(middleware.auth())
 
+
 // Rutas para transferencia de cajas (todas protegidas)
 router.group(() => {
   router.post('/request', '#controllers/box_transfer_controller.requestBox')
@@ -41,9 +43,28 @@ router.group(() => {
   router.get('/historical', '#controllers/sensors_controller.getHistoricalData')
   router.get('/polling', '#controllers/sensors_controller.getPollingData')
   router.post('/generate-test-data', '#controllers/sensors_controller.generateTestData')
-  router.get('/camera', '#controllers/sensors_controller.getCameraStream')
+  router.get('/camera', '#controllers/sensors_controller.getCameraStream') // Agregar esta línea
   router.put('/security-code', '#controllers/sensors_controller.updateSecurityCode') // Nueva ruta
 }).prefix('/api/sensors').use(middleware.auth())
+
+// Rutas para proveedores (todas protegidas)
+router.group(() => {
+  router.get('/', '#controllers/providers_controller.index')
+  router.get('/:id', '#controllers/providers_controller.show')
+  router.put('/:id', '#controllers/providers_controller.update')
+  router.delete('/:id', '#controllers/providers_controller.destroy')
+}).prefix('/api/providers').use(middleware.auth())
+
+// Ruta temporal para crear datos de prueba (REMOVER EN PRODUCCIÓN)
+router.get('/api/seed-providers', async ({ response }) => {
+  try {
+    const { default: TestProvidersSeeder } = await import('#services/test_providers_seeder')
+    await TestProvidersSeeder.createTestProviders()
+    return response.ok({ message: 'Proveedores de prueba creados exitosamente' })
+  } catch (error) {
+    return response.internalServerError({ message: 'Error al crear proveedores de prueba', error: error.message })
+  }
+})
 
 // Ruta por defecto
 router.get('/', async ({ response }) => {
