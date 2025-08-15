@@ -36,8 +36,6 @@ router.group(() => {
   router.post('/request', '#controllers/box_transfer_controller.requestBox')
   router.get('/', '#controllers/box_transfer_controller.listTransferRequests')
   router.post('/:id/respond', '#controllers/box_transfer_controller.respondToRequest')
-  router.post('/claim-with-code', '#controllers/safe_boxes_controller.claimBoxWithCode')
-  
 }).prefix('/api/box-transfers').use(middleware.auth())
 
 // Rutas para sensores

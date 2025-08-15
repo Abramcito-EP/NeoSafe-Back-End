@@ -117,6 +117,49 @@ export default class AdminSeeder {
   }
 
   /**
+   * Crear usuario específico: brisa@gmail.com
+   */
+  static async createBrisaUser() {
+    try {
+      console.log('👤 Creando usuario Brisa...')
+
+      // Verificar si ya existe
+      const existingUser = await User.query()
+        .where('email', 'brisa@gmail.com')
+        .first()
+
+      if (existingUser) {
+        console.log('✅ Ya existe el usuario con email: brisa@gmail.com')
+        console.log(`   👤 Nombre: ${existingUser.name} ${existingUser.lastName}`)
+        console.log(`   🔐 Contraseña: 123456`)
+        return existingUser
+      }
+
+      // Crear el usuario
+      const brisaUser = await User.create({
+        name: 'Brisa',
+        lastName: 'García',
+        email: 'brisa@gmail.com',
+        password: '123456',  // Será hasheada automáticamente por el modelo
+        birthDate: DateTime.fromFormat('1995-03-15', 'yyyy-MM-dd'),
+        roleId: 2 // user (rol normal de usuario)
+      })
+
+      console.log('✅ Usuario Brisa creado exitosamente:')
+      console.log(`   📧 Email: ${brisaUser.email}`)
+      console.log(`   🔐 Contraseña: 123456`)
+      console.log(`   👤 Nombre: ${brisaUser.name} ${brisaUser.lastName}`)
+      console.log(`   🏷️  Rol: Usuario`)
+      
+      return brisaUser
+
+    } catch (error) {
+      console.error('❌ Error al crear usuario Brisa:', error)
+      throw error
+    }
+  }
+
+  /**
    * Eliminar todos los administradores (útil para testing)
    */
   static async deleteAllAdmins() {

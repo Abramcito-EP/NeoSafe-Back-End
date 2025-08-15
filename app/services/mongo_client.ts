@@ -9,7 +9,7 @@ class MongoDbService {
   private readonly dbName: string
 
   constructor() {
-    this.url = env.get('MONGODB_URL', 'mongodb://localhost:27017')
+    this.url = env.get('MONGODB_URL', 'mongodb://admin:1q2w3e4r@18.188.176.183:27017,18.221.125.1:27017,3.16.29.115:27017/?replicaSet=rsCaja')
     this.dbName = env.get('MONGODB_DB_NAME', 'sensores_neosafe')
   }
 

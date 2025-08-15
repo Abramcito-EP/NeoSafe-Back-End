@@ -47,18 +47,30 @@ export default class SensorsController {
 
     const box = await SafeBox.findOrFail(boxId)
     
+    console.log(`🔍 Verificando permisos - Usuario: ${user.id} (${user.role.name}) para caja: ${boxId}`)
+    console.log(`📦 Caja info - ID: ${box.id}, isClaimed: ${box.isClaimed}, ownerId: ${box.ownerId}, providerId: ${box.providerId}`)
+    
     if (user.role.name === 'user') {
+      // Los usuarios solo pueden ver sus propias cajas reclamadas
       if (!box.isClaimed || box.ownerId !== user.id) {
+        console.log(`❌ Usuario ${user.id} no tiene acceso a caja ${boxId} - isClaimed: ${box.isClaimed}, ownerId: ${box.ownerId}`)
         throw new Error('No tienes permiso para acceder a los datos de esta caja')
       }
+      console.log(`✅ Usuario ${user.id} tiene acceso a su caja ${boxId}`)
     } else if (user.role.name === 'provider') {
+      // Los proveedores solo pueden ver cajas NO reclamadas que ellos proporcionan
       if (box.isClaimed || box.providerId !== user.id) {
+        console.log(`❌ Proveedor ${user.id} no tiene acceso a caja ${boxId} - isClaimed: ${box.isClaimed}, providerId: ${box.providerId}`)
         throw new Error('Solo puedes ver sensores de cajas no reclamadas que proporcionas')
       }
+      console.log(`✅ Proveedor ${user.id} tiene acceso a caja no reclamada ${boxId}`)
     } else if (user.role.name === 'admin') {
+      // Los administradores solo pueden ver cajas NO reclamadas (sin dueño)
       if (box.isClaimed) {
+        console.log(`❌ Admin ${user.id} no tiene acceso a caja reclamada ${boxId} - la caja ya tiene dueño`)
         throw new Error('Solo puedes ver sensores de cajas no reclamadas')
       }
+      console.log(`✅ Admin ${user.id} tiene acceso a caja no reclamada ${boxId}`)
     }
   }
 
