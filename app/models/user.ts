@@ -58,5 +58,4 @@ export default class User extends compose(BaseModel, AuthFinder) {
   declare providedBoxes: HasMany<typeof SafeBox>
 
   static accessTokens = DbAccessTokensProvider.forModel(User)
-    user: Date
 }

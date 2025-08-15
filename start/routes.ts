@@ -26,7 +26,8 @@ router.group(() => {
   router.post('/', '#controllers/safe_boxes_controller.store')
   router.put('/:id', '#controllers/safe_boxes_controller.update')
   router.delete('/:id', '#controllers/safe_boxes_controller.destroy')
-  router.post('/:id/generate-code', '#controllers/safe_boxes_controller.generatePropertyCode')
+  router.post('/claim', '#controllers/safe_boxes_controller.claimBox')
+  router.post('/claim-with-code', '#controllers/safe_boxes_controller.claimBoxWithCode')
 }).prefix('/api/safe-boxes').use(middleware.auth())
 
 
@@ -35,6 +36,8 @@ router.group(() => {
   router.post('/request', '#controllers/box_transfer_controller.requestBox')
   router.get('/', '#controllers/box_transfer_controller.listTransferRequests')
   router.post('/:id/respond', '#controllers/box_transfer_controller.respondToRequest')
+  router.post('/claim-with-code', '#controllers/safe_boxes_controller.claimBoxWithCode')
+  
 }).prefix('/api/box-transfers').use(middleware.auth())
 
 // Rutas para sensores
@@ -42,9 +45,12 @@ router.group(() => {
   router.get('/latest', '#controllers/sensors_controller.getLatestData')
   router.get('/historical', '#controllers/sensors_controller.getHistoricalData')
   router.get('/polling', '#controllers/sensors_controller.getPollingData')
+  router.get('/polling/multi', '#controllers/sensors_controller.getMultiBoxPollingData')
   router.post('/generate-test-data', '#controllers/sensors_controller.generateTestData')
   router.get('/camera', '#controllers/sensors_controller.getCameraStream') // Agregar esta línea
-  router.put('/security-code', '#controllers/sensors_controller.updateSecurityCode') // Nueva ruta
+  router.put('/security-code', '#controllers/sensors_controller.updateSecurityCode')
+  router.post('/open-box', '#controllers/sensors_controller.sendOpenBoxSignal')
+   // Nueva ruta
 }).prefix('/api/sensors').use(middleware.auth())
 
 // Rutas para proveedores (todas protegidas)

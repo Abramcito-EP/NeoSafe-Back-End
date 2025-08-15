@@ -9,7 +9,7 @@ class MongoDbService {
   private readonly dbName: string
 
   constructor() {
-    this.url = env.get('MONGODB_URL', 'mongodb+srv://admin:1q2w3e4r@myatlasclusteredu.ommfywj.mongodb.net/')
+    this.url = env.get('MONGODB_URL', 'mongodb://localhost:27017')
     this.dbName = env.get('MONGODB_DB_NAME', 'sensores_neosafe')
   }
 
@@ -19,13 +19,47 @@ class MongoDbService {
     }
 
     try {
-      this.client = new MongoClient(this.url)
+      console.log(`🔗 Intentando conectar a MongoDB...`)
+      console.log(`📍 URL: ${this.url}`)
+      console.log(`📍 DB Name: ${this.dbName}`)
+      
+      // Opciones específicas para replica set
+      const options = {
+        maxPoolSize: 10,
+        serverSelectionTimeoutMS: 10000, // Aumentado a 10 segundos
+        socketTimeoutMS: 45000,
+        connectTimeoutMS: 10000,
+        retryWrites: true,
+        retryReads: true,
+        authSource: 'admin', // Especificar la fuente de autenticación
+        ssl: false, // Si es necesario
+        directConnection: false, // Para replica sets
+        replicaSet: 'rsCaja' // Especificar el replica set
+      }
+      
+      this.client = new MongoClient(this.url, options)
+      console.log(`📡 Cliente MongoDB creado, conectando...`)
+
       await this.client.connect()
+      console.log(`🔌 Cliente conectado, obteniendo base de datos...`)
+
       this.db = this.client.db(this.dbName)
+      console.log(`📚 Base de datos obtenida: ${this.dbName}`)
+
+      // Hacer una prueba de ping para verificar la conexión
+      await this.db.command({ ping: 1 })
+      console.log(`🏓 Ping exitoso a MongoDB`)
+
       this.isConnected = true
-      console.log('Connected to MongoDB')
+      console.log(`✅ Connected to MongoDB (${this.dbName})`)
     } catch (error) {
-      console.error('MongoDB connection error:', error)
+      console.error(`❌ MongoDB connection error:`, error)
+      console.error(`🔍 Error details:`, {
+        name: error.name,
+        message: error.message,
+        code: error.code,
+        codeName: error.codeName
+      })
       throw error
     }
   }

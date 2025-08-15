@@ -16,12 +16,6 @@ interface HumiditySensor {
   createdAt: Date
 }
 
-interface WeightSensor {
-  boxId: number
-  weight: number
-  createdAt: Date
-}
-
 class SocketService {
   public io: Server | null = null
   private sensorSimulations: Map<number, NodeJS.Timeout> = new Map()
@@ -125,12 +119,6 @@ class SocketService {
           .limit(1)
           .toArray()
 
-        const latestWeight = await MongoClient.collection<WeightSensor>('weight_sensors')
-          .find({ boxId })
-          .sort({ createdAt: -1 })
-          .limit(1)
-          .toArray()
-
         initialData = {
           boxId,
           temperature: latestTemperature.length > 0 
@@ -139,11 +127,7 @@ class SocketService {
           
           humidity: latestHumidity.length > 0
             ? { value: latestHumidity[0].humidity, timestamp: latestHumidity[0].createdAt }
-            : { value: parseFloat((Math.random() * 80 + 20).toFixed(1)), timestamp: new Date() },
-          
-          weight: latestWeight.length > 0
-            ? { value: latestWeight[0].weight, timestamp: latestWeight[0].createdAt }
-            : { value: parseFloat((Math.random() * 5).toFixed(2)), timestamp: new Date() }
+            : { value: parseFloat((Math.random() * 80 + 20).toFixed(1)), timestamp: new Date() }
         }
       } catch (mongoError) {
         console.warn(`No se pudieron obtener datos de MongoDB para box ${boxId}, usando datos simulados:`, mongoError)
@@ -156,10 +140,6 @@ class SocketService {
           },
           humidity: {
             value: parseFloat((Math.random() * 80 + 20).toFixed(1)),
-            timestamp: new Date()
-          },
-          weight: {
-            value: parseFloat((Math.random() * 5).toFixed(2)),
             timestamp: new Date()
           }
         }
@@ -211,7 +191,6 @@ class SocketService {
       // Generar datos aleatorios para cada sensor
       const temperature = parseFloat((Math.random() * 30 + 10).toFixed(1)) // 10-40°C
       const humidity = parseFloat((Math.random() * 80 + 20).toFixed(1))    // 20-100%
-      const weight = parseFloat((Math.random() * 5).toFixed(2))            // 0-5kg
 
       const now = new Date()
 
@@ -224,10 +203,6 @@ class SocketService {
         },
         humidity: {
           value: humidity,
-          timestamp: now
-        },
-        weight: {
-          value: weight,
           timestamp: now
         }
       }
@@ -258,16 +233,9 @@ class SocketService {
         createdAt: sensorData.humidity.timestamp
       }
 
-      const weightRecord: WeightSensor = {
-        boxId: sensorData.boxId,
-        weight: sensorData.weight.value,
-        createdAt: sensorData.weight.timestamp
-      }
-
       // Insertar en las colecciones
       await MongoClient.collection<TemperatureSensor>('temperature_sensors').insertOne(temperatureRecord)
       await MongoClient.collection<HumiditySensor>('humidity_sensors').insertOne(humidityRecord)
-      await MongoClient.collection<WeightSensor>('weight_sensors').insertOne(weightRecord)
 
       console.log(`Sensor data stored in MongoDB for box ${sensorData.boxId}`)
     } catch (error) {
