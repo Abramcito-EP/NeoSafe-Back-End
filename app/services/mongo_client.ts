@@ -9,8 +9,8 @@ class MongoDbService {
   private readonly dbName: string
 
   constructor() {
-    this.url = env.get('MONGODB_URL', 'mongodb://localhost:27017')
-    this.dbName = env.get('MONGODB_DB_NAME', 'neosafe_sensors')
+    this.url = env.get('MONGODB_URL', 'mongodb+srv://admin:1q2w3e4r@myatlasclusteredu.ommfywj.mongodb.net/')
+    this.dbName = env.get('MONGODB_DB_NAME', 'sensores_neosafe')
   }
 
   async connect(): Promise<void> {
