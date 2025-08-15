@@ -15,18 +15,16 @@ export default class SafeBoxesController {
       let boxes;
 
       if (user.role.name === 'admin') {
-        // Los administradores solo pueden ver cajas NO reclamadas
-        boxes = await SafeBox.query().where('is_claimed', false);
+        // Los administradores pueden ver todas las cajas
+        boxes = await SafeBox.query();
       } else if (user.role.name === 'provider') {
-        // Los proveedores solo pueden ver cajas NO reclamadas que proporcionan
+        // Los proveedores pueden ver las cajas que proporcionan
         boxes = await SafeBox.query()
-          .where('provider_id', user.id)
-          .where('is_claimed', false);
+          .where('provider_id', user.id);
       } else {
-        // Los usuarios normales solo pueden ver sus propias cajas reclamadas
+        // Los usuarios normales solo pueden ver sus propias cajas
         boxes = await SafeBox.query()
-          .where('owner_id', user.id)
-          .where('is_claimed', true);
+          .where('owner_id', user.id);
       }
 
       console.log(`📦 Usuario ${user.id} (${user.role.name}) tiene ${boxes.length} cajas`);
@@ -52,21 +50,12 @@ export default class SafeBoxesController {
       const box = await SafeBox.findOrFail(id)
       
       // Verificar permisos según el rol
-      if (user.role.name === 'user') {
-        // Los usuarios solo pueden ver sus propias cajas reclamadas
-        if (!box.isClaimed || box.ownerId !== user.id) {
-          return response.forbidden({ message: 'No tienes permiso para ver esta caja' })
-        }
-      } else if (user.role.name === 'provider') {
-        // Los proveedores solo pueden ver cajas NO reclamadas que proporcionan
-        if (box.isClaimed || box.providerId !== user.id) {
-          return response.forbidden({ message: 'No tienes permiso para ver esta caja' })
-        }
-      } else if (user.role.name === 'admin') {
-        // Los administradores solo pueden ver cajas NO reclamadas
-        if (box.isClaimed) {
-          return response.forbidden({ message: 'No tienes permiso para ver esta caja reclamada' })
-        }
+      if (user.role.name === 'user' && box.ownerId !== user.id) {
+        return response.forbidden({ message: 'No tienes permiso para ver esta caja' })
+      }
+      
+      if (user.role.name === 'provider' && box.providerId !== user.id) {
+        return response.forbidden({ message: 'No tienes permiso para ver esta caja' })
       }
 
       await box.load('owner')
