@@ -21,6 +21,10 @@ export default class SeedAdmin extends BaseCommand {
         message: 'Crear múltiples cuentas de administrador para pruebas (3 cuentas)',
       },
       {
+        name: 'brisa',
+        message: 'Crear usuario Brisa (brisa@gmail.com) con contraseña 123456',
+      },
+      {
         name: 'delete',
         message: 'Eliminar todas las cuentas de administrador ⚠️ Acción destructiva',
       }
@@ -36,6 +40,10 @@ export default class SeedAdmin extends BaseCommand {
           
         case 'multiple':
           await AdminSeeder.createTestAdmins()
+          break
+          
+        case 'brisa':
+          await AdminSeeder.createBrisaUser()
           break
           
         case 'delete':
