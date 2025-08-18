@@ -47,18 +47,25 @@ export default class SensorsController {
 
     const box = await SafeBox.findOrFail(boxId)
     
+    console.log(`🔍 Verificando permisos - Usuario: ${user.id} (${user.role.name}) para caja: ${boxId}`)
+    console.log(`📦 Caja info - ID: ${box.id}, isClaimed: ${box.isClaimed}, ownerId: ${box.ownerId}, providerId: ${box.providerId}`)
+    
     if (user.role.name === 'user') {
       if (!box.isClaimed || box.ownerId !== user.id) {
+        console.log(`❌ Usuario ${user.id} no tiene acceso a caja ${boxId} - isClaimed: ${box.isClaimed}, ownerId: ${box.ownerId}`)
         throw new Error('No tienes permiso para acceder a los datos de esta caja')
       }
+      console.log(`✅ Usuario ${user.id} tiene acceso a su caja ${boxId}`)
     } else if (user.role.name === 'provider') {
       if (box.isClaimed || box.providerId !== user.id) {
+        console.log(`❌ Proveedor ${user.id} no tiene acceso a caja ${boxId} - isClaimed: ${box.isClaimed}, providerId: ${box.providerId}`)
         throw new Error('Solo puedes ver sensores de cajas no reclamadas que proporcionas')
       }
+      console.log(`✅ Proveedor ${user.id} tiene acceso a caja no reclamada ${boxId}`)
     } else if (user.role.name === 'admin') {
-      if (box.isClaimed) {
-        throw new Error('Solo puedes ver sensores de cajas no reclamadas')
-      }
+      // Los administradores pueden ver todas las cajas
+      console.log(`✅ Admin ${user.id} tiene acceso total a caja ${boxId}`)
+      return
     }
   }
 
@@ -569,6 +576,229 @@ export default class SensorsController {
         message: 'Error al enviar señal de apertura',
         error: error.message
       })
+    }
+  }
+
+  /**
+   * Obtener estadísticas de sensores para una caja específica
+   */
+  async getStatistics({ auth, request, response }: HttpContext) {
+    try {
+      // Verificar autenticación
+      const user = await auth.authenticate()
+      await user.load('role')
+      
+      const boxId = Number(request.qs().boxId)
+      
+      console.log(`📊 Obteniendo estadísticas para Box ID: ${boxId}`)
+      
+      if (!boxId) {
+        return response.badRequest({ message: 'Box ID es requerido' })
+      }
+
+      // Verificar permisos de acceso a la caja
+      await this.checkBoxPermissions(user, boxId)
+
+      // Obtener estadísticas de temperatura
+      const tempStats = await this.calculateSensorStats('temperatura', boxId)
+      
+      // Obtener estadísticas de humedad  
+      const humidityStats = await this.calculateSensorStats('humedad', boxId)
+
+      console.log(`✅ Estadísticas calculadas para Box ID: ${boxId}`)
+
+      return response.ok({
+        boxId,
+        temperature: tempStats,
+        humidity: humidityStats,
+        timestamp: new Date().toISOString()
+      })
+
+    } catch (error: any) {
+      console.error(`❌ Error obteniendo estadísticas: ${error.message}`)
+      
+      if (error.message.includes('permiso')) {
+        return response.forbidden({ message: error.message })
+      }
+      
+      return response.internalServerError({
+        message: 'Error al obtener estadísticas',
+        error: error.message
+      })
+    }
+  }
+
+  /**
+   * Calcular estadísticas para un tipo de sensor específico
+   */
+  private async calculateSensorStats(collection: string, boxId: number) {
+    console.log(`🔢 Calculando estadísticas para ${collection} - Box ID: ${boxId}`)
+
+    try {
+      // Asegurar que MongoDB esté conectado
+      await MongoClient.connect()
+
+      // Obtener la colección directamente usando el servicio
+      const mongoCollection = MongoClient.collection(collection)
+
+      const pipeline = [
+        {
+          $match: { 
+            box_id: boxId 
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            count: { $sum: 1 },
+            avg: { $avg: "$valor" },
+            min: { $min: "$valor" },
+            max: { $max: "$valor" },
+            latest: { $max: "$timestamp" }
+          }
+        }
+      ]
+
+      const result = await mongoCollection.aggregate(pipeline).toArray()
+      
+      if (result.length === 0) {
+        console.log(`⚠️ No hay datos para ${collection} - Box ID: ${boxId}`)
+        return {
+          count: 0,
+          average: 0,
+          minimum: 0,
+          maximum: 0,
+          latest: null
+        }
+      }
+
+      const stats = result[0]
+      console.log(`📈 Estadísticas de ${collection}: min=${stats.min}, max=${stats.max}, avg=${stats.avg}`)
+
+      return {
+        count: stats.count,
+        average: Number(stats.avg.toFixed(2)),
+        minimum: stats.min,
+        maximum: stats.max,
+        latest: stats.latest
+      }
+    } catch (error: any) {
+      console.error(`❌ Error calculando estadísticas para ${collection}:`, error)
+      return {
+        count: 0,
+        average: 0,
+        minimum: 0,
+        maximum: 0,
+        latest: null,
+        error: error.message
+      }
+    }
+  }
+
+  /**
+   * Verificar alertas para una caja específica
+   */
+  async checkAlerts({ request, auth, response }: HttpContext) {
+    try {
+      const { boxId } = request.qs()
+      const user = auth.user!
+      await user.load('role')
+      
+      const targetBoxId = boxId ? parseInt(boxId) : 1
+      console.log(`🚨 Verificando alertas para boxId: ${targetBoxId}`)
+
+      // Verificar permisos
+      await this.checkBoxPermissions(user, targetBoxId)
+      await this.ensureMongoConnection()
+
+      // Obtener los últimos valores de temperatura y humedad usando el método que ya funciona
+      const [temperatureData, humidityData] = await Promise.all([
+        this.getLatestSensorData('temperature', targetBoxId),
+        this.getLatestSensorData('humidity', targetBoxId)
+      ])
+
+      const latestTemp = temperatureData?.value || null
+      const latestHumidity = humidityData?.value || null
+
+      console.log(`🌡️ Última temperatura: ${latestTemp}°C`)
+      console.log(`💧 Última humedad: ${latestHumidity}%`)
+
+      const alerts = []
+
+      // Verificar alerta de temperatura (> 25°C)
+      if (latestTemp !== null && latestTemp > 25) {
+        alerts.push({
+          type: 'temperature',
+          severity: 'warning',
+          message: `Temperatura elevada: ${latestTemp}°C (límite: 25°C)`,
+          value: latestTemp,
+          threshold: 25,
+          timestamp: new Date().toISOString()
+        })
+        console.log(`🚨 ALERTA: Temperatura alta ${latestTemp}°C`)
+      }
+
+      // Verificar alerta de humedad (> 70%)
+      if (latestHumidity !== null && latestHumidity > 70) {
+        alerts.push({
+          type: 'humidity',
+          severity: 'warning',
+          message: `Humedad elevada: ${latestHumidity}% (límite: 70%)`,
+          value: latestHumidity,
+          threshold: 70,
+          timestamp: new Date().toISOString()
+        })
+        console.log(`🚨 ALERTA: Humedad alta ${latestHumidity}%`)
+      }
+
+      const result = {
+        boxId: targetBoxId,
+        timestamp: new Date().toISOString(),
+        hasAlerts: alerts.length > 0,
+        alertsCount: alerts.length,
+        alerts,
+        currentValues: {
+          temperature: latestTemp,
+          humidity: latestHumidity
+        }
+      }
+
+      console.log(`✅ Verificación de alertas completada: ${alerts.length} alertas encontradas`)
+      return response.ok(result)
+
+    } catch (error: any) {
+      console.error('❌ Error verificando alertas:', error)
+      
+      return response.internalServerError({
+        timestamp: new Date().toISOString(),
+        status: 'error',
+        message: 'Error al verificar alertas',
+        error: error.message
+      })
+    }
+  }
+
+  /**
+   * Obtener el último valor de un sensor específico
+   */
+  private async getLatestSensorValue(sensorType: string, boxId: number): Promise<number | null> {
+    try {
+      const collection = `${sensorType}_box_${boxId}`
+      await this.ensureMongoConnection()
+      const mongoCollection = MongoClient.collection(collection)
+
+      const latestRecord = await mongoCollection
+        .findOne({}, { sort: { timestamp: -1 } })
+
+      if (!latestRecord) {
+        console.log(`⚠️ No hay registros para ${sensorType} - Box ID: ${boxId}`)
+        return null
+      }
+
+      return latestRecord.valor || null
+    } catch (error: any) {
+      console.error(`❌ Error obteniendo último valor de ${sensorType}:`, error)
+      return null
     }
   }
 }

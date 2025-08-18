@@ -50,6 +50,8 @@ router.group(() => {
   router.get('/camera', '#controllers/sensors_controller.getCameraStream') // Agregar esta línea
   router.put('/security-code', '#controllers/sensors_controller.updateSecurityCode')
   router.post('/open-box', '#controllers/sensors_controller.sendOpenBoxSignal')
+  router.get('/statistics', '#controllers/sensors_controller.getStatistics')
+  router.get('/alerts', '#controllers/sensors_controller.checkAlerts')
    // Nueva ruta
 }).prefix('/api/sensors').use(middleware.auth())
 
