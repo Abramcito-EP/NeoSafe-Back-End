@@ -426,7 +426,7 @@ export default class SensorsController {
     
       const cameraConfig = {
         boxId: boxId ? parseInt(boxId) : 1,
-        streamUrl: "https://bride-ensemble-oak-ty.trycloudflare.com/?action=stream",
+        streamUrl: "https://ceiling-arnold-visitor-animals.trycloudflare.com/?action=stream",
         status: "online",
         timestamp: new Date().toISOString(),
         resolution: "1280x720",
