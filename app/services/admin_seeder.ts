@@ -142,7 +142,7 @@ export default class AdminSeeder {
         email: 'brisa@gmail.com',
         password: '123456',  // Será hasheada automáticamente por el modelo
         birthDate: DateTime.fromFormat('1995-03-15', 'yyyy-MM-dd'),
-        roleId: 2 // user (rol normal de usuario)
+        roleId: 3 // user (rol normal de usuario)
       })
 
       console.log('✅ Usuario Brisa creado exitosamente:')
